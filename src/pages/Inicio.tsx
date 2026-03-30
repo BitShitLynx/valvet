@@ -1,4 +1,3 @@
-import React from 'react';
 import type { Usuario } from '../supabaseClient';
 import { makeS } from '../styles/theme';
 import type { TemaObj } from '../styles/theme';

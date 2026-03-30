@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import type { Usuario } from './supabaseClient';
-import { TEMAS, makeS } from './styles/theme';
+import { TEMAS } from './styles/theme';
 import type { Tema } from './styles/theme';
 import { VALVET_LOGO, LYNX_LOGO } from './styles/theme';
 
@@ -31,7 +31,6 @@ const App = () => {
   const [mostrarAlertaStock, setMostrarAlertaStock] = useState(false);
 
   const tema = TEMAS[temaKey];
-  const S    = makeS(tema);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {

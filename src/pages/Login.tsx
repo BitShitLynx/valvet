@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import type { Usuario } from '../supabaseClient';
 import { TEMAS, makeS } from '../styles/theme';

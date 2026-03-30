@@ -1,49 +1,44 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import type { Usuario } from '../supabaseClient';
 import { makeS, ESTADO_CONFIG, CATEGORIAS_INV, COLORES_CAT } from '../styles/theme';
 import type { TemaObj } from '../styles/theme';
 
-interface Producto {
-  id: string; nombre: string; categoria: string; especie: string;
-  dosis: string[]; vias: string[]; stock: number; unidad: string;
-}
-
-const mapProducto = (p: any): Producto => ({
-  id:        p.id,
-  nombre:    p.nombre,
-  categoria: p.categoria   || 'Otro',
-  especie:   p.especie     || 'General',
-  dosis:     Array.isArray(p.dosis) ? p.dosis : [],
-  vias:      Array.isArray(p.vias)  ? p.vias  : [],
-  stock:     Number(p.stock_actual ?? p.stock ?? 0),
-  unidad:    p.unidad      || 'unidad',
-});
-
 const SeccionIntervenciones = ({ usuario, tema }: { usuario: Usuario; tema: TemaObj }) => {
   const S = makeS(tema);
-  const [catalogo, setCatalogo] = useState<Producto[]>([]);
+  const [productos, setProductos] = useState<any[]>([]);
   const [pacientes, setPacientes] = useState<any[]>([]);
   const [pacienteId, setPacienteId] = useState('');
   const [busquedaDroga, setBusquedaDroga] = useState('');
   const [mostrarSug, setMostrarSug] = useState(false);
-  const [productoSel, setProductoSel] = useState<Producto | null>(null);
+  const [productoSel, setProductoSel] = useState<any | null>(null);
   const [fueraDeStock, setFueraDeStock] = useState(false);
   const [saving, setSaving] = useState(false);
   const [exito, setExito] = useState('');
   const [error, setError] = useState('');
   const [form, setForm] = useState({ dosis: '', via: '', cantidad: '', fecha: new Date().toISOString().split('T')[0], lote: '', vencimiento: '', productoManual: '', categoriaManual: 'Vacuna', observaciones: '' });
 
+  const cargarProductos = useCallback(async () => {
+    const { data } = await supabase
+      .from('productos')
+      .select('id, nombre, categoria, stock_actual, unidad, dosis, vias')
+      .eq('clinica_id', usuario.clinica_id)
+      .eq('activo', true)
+      .order('nombre');
+    setProductos(data || []);
+  }, [usuario.clinica_id]);
+
   useEffect(() => {
     supabase.from('pacientes').select('id,nombre,especie,raza,estado').eq('clinica_id', usuario.clinica_id).order('nombre')
       .then(({ data }) => setPacientes(data || []));
-    supabase.from('productos').select('id,nombre,categoria,especie,dosis,vias,stock_actual,unidad')
-      .eq('clinica_id', usuario.clinica_id).order('nombre')
-      .then(({ data }) => setCatalogo((data || []).map(mapProducto)));
-  }, [usuario.clinica_id]);
+    cargarProductos();
+  }, [usuario.clinica_id, cargarProductos]);
 
-  const filtrados = catalogo.filter(p => p.nombre.toLowerCase().includes(busquedaDroga.toLowerCase()) || p.categoria.toLowerCase().includes(busquedaDroga.toLowerCase()));
-  const seleccionar = (p: Producto) => { setProductoSel(p); setBusquedaDroga(p.nombre); setMostrarSug(false); setFueraDeStock(false); setForm(f => ({ ...f, dosis: '', via: '' })); };
+  const filtrados = productos.filter(p =>
+    p.nombre.toLowerCase().includes(busquedaDroga.toLowerCase()) ||
+    (p.categoria || '').toLowerCase().includes(busquedaDroga.toLowerCase())
+  );
+  const seleccionar = (p: any) => { setProductoSel(p); setBusquedaDroga(p.nombre); setMostrarSug(false); setFueraDeStock(false); setForm(f => ({ ...f, dosis: '', via: '' })); };
   const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
 
   const confirmar = async () => {
@@ -61,9 +56,8 @@ const SeccionIntervenciones = ({ usuario, tema }: { usuario: Usuario; tema: Tema
     if (dbErr) { setError('Error al guardar: ' + dbErr.message); setSaving(false); return; }
     if (!fueraDeStock && productoSel) {
       const cant = parseFloat(form.cantidad) || 1;
-      const nuevoStock = Math.max(0, productoSel.stock - cant);
-      await supabase.from('productos').update({ stock_actual: nuevoStock }).eq('id', productoSel.id);
-      setCatalogo(prev => prev.map(p => p.id === productoSel.id ? { ...p, stock: nuevoStock } : p));
+      await supabase.from('productos').update({ stock_actual: Math.max(0, productoSel.stock_actual - cant) }).eq('id', productoSel.id);
+      await cargarProductos();
     }
     setExito(`✅ Intervención registrada: ${nombreProducto} aplicada correctamente.`);
     setPacienteId(''); setProductoSel(null); setBusquedaDroga(''); setFueraDeStock(false);
@@ -107,8 +101,8 @@ const SeccionIntervenciones = ({ usuario, tema }: { usuario: Usuario; tema: Tema
                 <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', background: tema.bgInput, borderRadius: '8px', border: `1px solid ${tema.border}` }}>
                   <span style={{ fontWeight: 'bold', color: tema.text }}>{productoSel.nombre}</span>
                   <span style={{ fontSize: '11px', background: COLORES_CAT[productoSel.categoria] || '#475569', padding: '2px 8px', borderRadius: '99px', color: 'white' }}>{productoSel.categoria}</span>
-                  {badgeStock(productoSel.stock, productoSel.unidad)}
-                  {productoSel.stock === 0 && <span style={{ color: '#f87171', fontSize: '12px' }}>⚠️ Sin stock</span>}
+                  {badgeStock(productoSel.stock_actual, productoSel.unidad)}
+                  {productoSel.stock_actual === 0 && <span style={{ color: '#f87171', fontSize: '12px' }}>⚠️ Sin stock</span>}
                 </div>
               )}
               {mostrarSug && busquedaDroga.length > 0 && !productoSel && (
@@ -122,7 +116,7 @@ const SeccionIntervenciones = ({ usuario, tema }: { usuario: Usuario; tema: Tema
                     >
                       <span style={{ color: tema.text }}>{p.nombre}</span>
                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        {badgeStock(p.stock, p.unidad)}
+                        {badgeStock(p.stock_actual, p.unidad)}
                         <span style={{ fontSize: '11px', background: COLORES_CAT[p.categoria] || '#475569', padding: '2px 8px', borderRadius: '99px', color: 'white' }}>{p.categoria}</span>
                       </div>
                     </div>
@@ -140,13 +134,13 @@ const SeccionIntervenciones = ({ usuario, tema }: { usuario: Usuario; tema: Tema
           <div>
             <label style={S.label}>Dosis</label>
             {!fueraDeStock && productoSel?.dosis.length ? (
-              <select value={form.dosis} onChange={e => set('dosis', e.target.value)} style={{ ...S.input, cursor: 'pointer' }}><option value="">-- Seleccionar --</option>{productoSel.dosis.map((d, i) => <option key={i} value={d}>{d}</option>)}</select>
+              <select value={form.dosis} onChange={e => set('dosis', e.target.value)} style={{ ...S.input, cursor: 'pointer' }}><option value="">-- Seleccionar --</option>{productoSel.dosis.map((d: string, i: number) => <option key={i} value={d}>{d}</option>)}</select>
             ) : (<input type="text" placeholder="Ej: 10mg/kg" value={form.dosis} onChange={e => set('dosis', e.target.value)} style={S.input} />)}
           </div>
           <div>
             <label style={S.label}>Vía de administración</label>
             {!fueraDeStock && productoSel?.vias.length ? (
-              <select value={form.via} onChange={e => set('via', e.target.value)} style={{ ...S.input, cursor: 'pointer' }}><option value="">-- Seleccionar --</option>{productoSel.vias.map((v, i) => <option key={i} value={v}>{v}</option>)}</select>
+              <select value={form.via} onChange={e => set('via', e.target.value)} style={{ ...S.input, cursor: 'pointer' }}><option value="">-- Seleccionar --</option>{productoSel.vias.map((v: string, i: number) => <option key={i} value={v}>{v}</option>)}</select>
             ) : (<input type="text" placeholder="Ej: SC, IM, VO" value={form.via} onChange={e => set('via', e.target.value)} style={S.input} />)}
           </div>
           <div><label style={S.label}>Cantidad{productoSel ? ` (${productoSel.unidad})` : ''}</label><input type="number" min="0" step="0.1" placeholder="Ej: 1" value={form.cantidad} onChange={e => set('cantidad', e.target.value)} style={S.input} /></div>

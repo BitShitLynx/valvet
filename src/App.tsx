@@ -18,6 +18,7 @@ import SeccionCirugias       from './pages/Cirugias';
 import SeccionGastos         from './pages/Gastos';
 import SeccionReportes       from './pages/Reportes';
 import SeccionUsuarios       from './pages/Usuarios';
+import AdminLynx             from './pages/AdminLynx';
 import { ToastProvider }     from './components/toast';
 
 const App = () => {
@@ -100,6 +101,7 @@ const App = () => {
         { key: 'gastos',      label: 'Gastos' },
         { key: 'reportes',    label: 'Reportes' },
         { key: 'usuarios',    label: 'Usuarios' },
+        ...(usuario.email === 'prueba@prueba.com' ? [{ key: 'admin_lynx', label: 'Admin Lynx' }] : []),
       ],
     },
   ];
@@ -232,6 +234,7 @@ const App = () => {
           {vista === 'gastos'         && <SeccionGastos         usuario={usuario} tema={tema} />}
           {vista === 'reportes'       && <SeccionReportes       usuario={usuario} tema={tema} />}
           {vista === 'usuarios'       && <SeccionUsuarios       usuario={usuario} tema={tema} />}
+          {vista === 'admin_lynx'     && <AdminLynx             usuario={usuario} tema={tema} />}
         </main>
       </div>
     </div>

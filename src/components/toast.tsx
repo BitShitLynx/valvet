@@ -34,15 +34,15 @@ export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
     const id = Date.now() + nextId++;
     setToasts(prev => [...prev, { id, mensaje, tipo, saliendo: false }]);
 
-    // Iniciar animación de salida a los 3s
+    // Iniciar animación de salida a los 5s
     setTimeout(() => {
       setToasts(prev => prev.map(t => t.id === id ? { ...t, saliendo: true } : t));
-    }, 3000);
+    }, 5000);
 
-    // Eliminar a los 3.4s (después de la animación)
+    // Eliminar a los 5.4s (después de la animación)
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
-    }, 3400);
+    }, 5400);
   }, []);
 
   const cerrar = (id: number) => {
@@ -74,7 +74,7 @@ export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
               maxWidth: '380px',
               boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
               opacity: t.saliendo ? 0 : 1,
-              transform: t.saliendo ? 'translateX(20px)' : 'translateX(0)',
+              transform: t.saliendo ? 'translateY(20px)' : 'translateY(0)',
               transition: 'opacity 0.35s ease, transform 0.35s ease',
               cursor: 'default',
             }}>

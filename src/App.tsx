@@ -21,6 +21,25 @@ import SeccionUsuarios       from './pages/Usuarios';
 import AdminLynx             from './pages/AdminLynx';
 import { ToastProvider, useToast } from './components/toast';
 
+// ── Alertas de stock bajo al iniciar sesión ───────────────────────────────────
+const StockAlertInit = ({ productos }: { productos: {nombre: string; stock_actual: number; unidad: string}[] }) => {
+  const { toast } = useToast();
+  useEffect(() => {
+    productos.forEach((p, i) => {
+      setTimeout(() => {
+        toast(
+          p.stock_actual === 0
+            ? `Sin stock: ${p.nombre}`
+            : `Stock bajo: ${p.nombre} — ${p.stock_actual} ${p.unidad}`,
+          p.stock_actual === 0 ? 'error' : 'warning'
+        );
+      }, i * 600);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return null;
+};
+
 // ── Pantalla cambio de contraseña (recovery link) ─────────────────────────────
 const PantallaRecuperacion = ({ onDone }: { onDone: () => void }) => {
   const { toast } = useToast();
@@ -81,8 +100,8 @@ const App = () => {
   const [temaKey, setTemaKey]           = useState<Tema>(
     () => (localStorage.getItem('valvet-tema') as Tema) || 'dark'
   );
-  const [stockAlertas, setStockAlertas] = useState<{nombre: string; stock: number; unidad: string}[]>([]);
-  const [mostrarAlertaStock, setMostrarAlertaStock] = useState(false);
+  const [clinicaNombre, setClinicaNombre] = useState<string>('');
+  const [stockAlertas, setStockAlertas] = useState<{nombre: string; stock_actual: number; unidad: string}[]>([]);
   const [modoRecuperacion, setModoRecuperacion] = useState(false);
 
   const tema = TEMAS[temaKey];
@@ -99,6 +118,10 @@ const App = () => {
         const { data } = await supabase.from('usuarios').select('*').eq('id', session.user.id).single();
         if (data) {
           setUsuario(data as Usuario);
+          const { data: clinica } = await supabase
+            .from('clinicas').select('nombre')
+            .eq('id', data.clinica_id).single();
+          if (clinica) setClinicaNombre(clinica.nombre);
           const { data: productosConPocoStock } = await supabase
             .from('productos')
             .select('nombre, stock_actual, unidad')
@@ -107,12 +130,7 @@ const App = () => {
             .lte('stock_actual', 5)
             .order('stock_actual', { ascending: true });
           if (productosConPocoStock && productosConPocoStock.length > 0) {
-            setStockAlertas(productosConPocoStock.map(p => ({
-              nombre: p.nombre,
-              stock: p.stock_actual,
-              unidad: p.unidad
-            })));
-            setMostrarAlertaStock(true);
+            setStockAlertas(productosConPocoStock);
           }
         }
       }
@@ -176,37 +194,7 @@ const App = () => {
   return (
     <ToastProvider>
     {modoRecuperacion && <PantallaRecuperacion onDone={() => setModoRecuperacion(false)} />}
-    {!modoRecuperacion && mostrarAlertaStock && (
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-        <div style={{ background: '#141414', border: '1px solid #5a3a00', borderRadius: '10px', padding: '28px', maxWidth: '420px', width: '100%' }}>
-          <p style={{ margin: '0 0 4px', fontSize: '11px', color: '#8a6a00', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>Atención</p>
-          <h3 style={{ margin: '0 0 16px', color: '#d0d0d0', fontSize: '16px', fontWeight: '600' }}>
-            {stockAlertas.length} producto{stockAlertas.length !== 1 ? 's' : ''} con stock crítico
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px', maxHeight: '240px', overflowY: 'auto' }}>
-            {stockAlertas.map((p, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#1a1a1a', borderRadius: '6px', border: `1px solid ${p.stock === 0 ? '#5a1a1a' : '#3a2a00'}` }}>
-                <span style={{ fontSize: '13px', color: '#c8c8c8' }}>{p.nombre}</span>
-                <span style={{ fontSize: '12px', fontWeight: '600', color: p.stock === 0 ? '#c07070' : '#c0a040', background: p.stock === 0 ? '#2a0a0a' : '#2a1a00', padding: '2px 10px', borderRadius: '3px', letterSpacing: '0.04em' }}>
-                  {p.stock === 0 ? 'Sin stock' : `${p.stock} ${p.unidad}`}
-                </span>
-              </div>
-            ))}
-          </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button onClick={() => { setMostrarAlertaStock(false); navegarA('stock'); }}
-              style={{ flex: 1, padding: '11px', background: '#1a2a1a', border: '1px solid #2d5a2d', borderRadius: '6px', color: '#5a9e5a', cursor: 'pointer', fontSize: '13px', fontWeight: '500', letterSpacing: '0.04em' }}>
-              Ver inventario
-
-            </button>
-            <button onClick={() => setMostrarAlertaStock(false)}
-              style={{ padding: '11px 20px', background: 'transparent', border: '1px solid #2a2a2a', borderRadius: '6px', color: '#555', cursor: 'pointer', fontSize: '13px' }}>
-              Cerrar
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
+    {stockAlertas.length > 0 && <StockAlertInit productos={stockAlertas} />}
     {!modoRecuperacion && <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: tema.bg, color: tema.text, fontFamily: "'Inter', system-ui, sans-serif" }}>
 
       {/* SIDEBAR */}
@@ -225,6 +213,11 @@ const App = () => {
           </div>
           <p style={{ margin: '0 0 7px', fontSize: '14px', fontWeight: '600', color: '#c8c8c8', letterSpacing: '0.01em' }}>{usuario.nombre}</p>
           <span style={{ fontSize: '11px', background: rolStyle.bg, color: rolStyle.color, border: `1px solid ${rolStyle.border}`, padding: '2px 10px', borderRadius: '3px', letterSpacing: '0.08em', textTransform: 'uppercase' as const, fontWeight: '500' }}>{usuario.rol}</span>
+          {clinicaNombre && (
+            <p style={{ margin: '8px 0 0', fontSize: '11px', color: '#3a3a3a', letterSpacing: '0.04em', borderTop: '1px solid #1e1e1e', paddingTop: '8px' }}>
+              {clinicaNombre}
+            </p>
+          )}
         </div>
 
         {/* Nav agrupada */}

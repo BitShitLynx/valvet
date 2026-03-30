@@ -5,7 +5,7 @@ import { makeS } from '../styles/theme';
 import type { TemaObj } from '../styles/theme';
 import { useToast } from '../components/toast';
 
-const ADMIN_EMAIL = 'marianonicolasmontano@gmail.com'; // reemplazar con tu email real
+const ADMIN_EMAIL = 'marianonicolasmontano@gmail.com';
 
 interface Clinica {
   id: string; nombre: string; email?: string;
@@ -17,13 +17,16 @@ const AdminLynx = ({ usuario, tema }: { usuario: Usuario; tema: TemaObj }) => {
   const { toast } = useToast();
   const [clinicas, setClinicas] = useState<Clinica[]>([]);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({
-    clinicaNombre: '', clinicaTelefono: '', clinicaEmail: '',
-    adminNombre: '', adminEmail: '', adminPassword: '',
-  });
-  const [creando, setCreando] = useState(false);
 
-  const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
+  // Formulario 1 — nueva clínica
+  const [formClinica, setFormClinica] = useState({ nombre: '', telefono: '', email: '' });
+  const [creandoClinica, setCreandoClinica] = useState(false);
+  const setC = (k: string, v: string) => setFormClinica(p => ({ ...p, [k]: v }));
+
+  // Formulario 2 — vincular usuario
+  const [formUsuario, setFormUsuario] = useState({ clinicaId: '', userId: '', nombre: '', email: '', rol: 'admin' });
+  const [vinculando, setVinculando] = useState(false);
+  const setU = (k: string, v: string) => setFormUsuario(p => ({ ...p, [k]: v }));
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -36,49 +39,38 @@ const AdminLynx = ({ usuario, tema }: { usuario: Usuario; tema: TemaObj }) => {
   useEffect(() => { cargar(); }, [cargar]);
 
   const crearClinica = async () => {
-    if (!form.clinicaNombre.trim()) { toast('El nombre de la clínica es obligatorio', 'warning'); return; }
-    if (!form.adminEmail.trim() || !form.adminPassword.trim()) { toast('Email y contraseña del admin son obligatorios', 'warning'); return; }
-    if (form.adminPassword.length < 6) { toast('La contraseña debe tener al menos 6 caracteres', 'warning'); return; }
-
-    setCreando(true);
-
-    // 1. Crear clínica
-    const { data: clinica, error: e1 } = await supabase
+    if (!formClinica.nombre.trim()) { toast('El nombre de la clínica es obligatorio', 'warning'); return; }
+    setCreandoClinica(true);
+    const { data: clinica, error } = await supabase
       .from('clinicas').insert({
-        nombre: form.clinicaNombre.trim(),
-        telefono: form.clinicaTelefono || null,
-        email: form.clinicaEmail || null,
+        nombre: formClinica.nombre.trim(),
+        telefono: formClinica.telefono || null,
+        email: formClinica.email || null,
       }).select().single();
+    if (error || !clinica) { toast('Error al crear la clínica: ' + error?.message, 'error'); setCreandoClinica(false); return; }
+    toast(`Clínica "${clinica.nombre}" creada correctamente`, 'success');
+    setFormClinica({ nombre: '', telefono: '', email: '' });
+    cargar();
+    setCreandoClinica(false);
+  };
 
-    if (e1 || !clinica) { toast('Error al crear la clínica: ' + e1?.message, 'error'); setCreando(false); return; }
-
-    // 2. Crear usuario en Auth
-    const { data: authData, error: e2 } = await supabase.auth.signUp({
-      email: form.adminEmail.trim(),
-      password: form.adminPassword,
-    });
-
-    if (e2 || !authData.user) {
-      toast('Error al crear usuario Auth: ' + e2?.message, 'error');
-      setCreando(false); return;
-    }
-
-    // 3. Insertar en tabla usuarios
-    const { error: e3 } = await supabase.from('usuarios').insert({
-      id: authData.user.id,
-      clinica_id: clinica.id,
-      nombre: form.adminNombre.trim() || 'Administrador',
-      email: form.adminEmail.trim(),
-      rol: 'admin',
+  const vincularUsuario = async () => {
+    if (!formUsuario.clinicaId) { toast('Seleccioná una clínica', 'warning'); return; }
+    if (!formUsuario.userId.trim()) { toast('El UUID del usuario es obligatorio', 'warning'); return; }
+    if (!formUsuario.email.trim()) { toast('El email es obligatorio', 'warning'); return; }
+    setVinculando(true);
+    const { error } = await supabase.from('usuarios').insert({
+      id: formUsuario.userId.trim(),
+      clinica_id: formUsuario.clinicaId,
+      nombre: formUsuario.nombre.trim() || 'Usuario',
+      email: formUsuario.email.trim(),
+      rol: formUsuario.rol,
       activo: true,
     });
-
-    if (e3) { toast('Error al crear usuario en DB: ' + e3.message, 'error'); setCreando(false); return; }
-
-    toast(`Clínica "${clinica.nombre}" creada correctamente`, 'success');
-    setForm({ clinicaNombre: '', clinicaTelefono: '', clinicaEmail: '', adminNombre: '', adminEmail: '', adminPassword: '' });
-    cargar();
-    setCreando(false);
+    if (error) { toast('Error al vincular usuario: ' + error.message, 'error'); setVinculando(false); return; }
+    toast('Usuario vinculado correctamente', 'success');
+    setFormUsuario({ clinicaId: '', userId: '', nombre: '', email: '', rol: 'admin' });
+    setVinculando(false);
   };
 
   const eliminarClinica = async (id: string, nombre: string) => {
@@ -113,42 +105,76 @@ const AdminLynx = ({ usuario, tema }: { usuario: Usuario; tema: TemaObj }) => {
         <p style={{ margin: '6px 0 0', fontSize: '13px', color: tema.textMuted }}>{clinicas.length} clínica{clinicas.length !== 1 ? 's' : ''} registrada{clinicas.length !== 1 ? 's' : ''}</p>
       </div>
 
-      {/* Formulario nueva clínica */}
+      {/* FORMULARIO 1 — Nueva clínica */}
       <div style={{ ...S.card }}>
-        <h3 style={{ margin: '0 0 20px', fontSize: '15px', fontWeight: '600', color: tema.text }}>Nueva clínica</h3>
+        <h3 style={{ margin: '0 0 20px', fontSize: '15px', fontWeight: '600', color: tema.text }}>Paso 1 — Nueva clínica</h3>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
           <div style={{ gridColumn: '1/-1' }}>
             <label style={S.label}>Nombre de la clínica *</label>
-            <input style={S.input} value={form.clinicaNombre} onChange={e => set('clinicaNombre', e.target.value)} placeholder="Ej: Veterinaria San Martín" />
+            <input style={S.input} value={formClinica.nombre} onChange={e => setC('nombre', e.target.value)} placeholder="Ej: Veterinaria San Martín" />
           </div>
           <div>
             <label style={S.label}>Teléfono</label>
-            <input style={S.input} value={form.clinicaTelefono} onChange={e => set('clinicaTelefono', e.target.value)} placeholder="+54 9 11 1234-5678" />
+            <input style={S.input} value={formClinica.telefono} onChange={e => setC('telefono', e.target.value)} placeholder="+54 9 11 1234-5678" />
           </div>
           <div>
             <label style={S.label}>Email de la clínica</label>
-            <input style={S.input} value={form.clinicaEmail} onChange={e => set('clinicaEmail', e.target.value)} placeholder="info@clinica.com" />
+            <input style={S.input} value={formClinica.email} onChange={e => setC('email', e.target.value)} placeholder="info@clinica.com" />
           </div>
+        </div>
+        <button onClick={crearClinica} disabled={creandoClinica}
+          style={{ ...S.btnPrimary, marginTop: '20px', padding: '12px 28px', opacity: creandoClinica ? 0.6 : 1 }}>
+          {creandoClinica ? 'Creando...' : 'Crear clínica'}
+        </button>
+      </div>
 
-          <div style={{ gridColumn: '1/-1', borderTop: `1px solid ${tema.border}`, paddingTop: '14px' }}>
-            <p style={{ margin: '0 0 14px', fontSize: '11px', color: tema.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase' as const }}>Usuario administrador</p>
+      {/* FORMULARIO 2 — Vincular usuario */}
+      <div style={{ ...S.card }}>
+        <h3 style={{ margin: '0 0 8px', fontSize: '15px', fontWeight: '600', color: tema.text }}>Paso 2 — Agregar usuario a clínica</h3>
+
+        {/* Instrucciones */}
+        <div style={{ background: tema.bgInput, border: `1px solid ${tema.border}`, borderRadius: '8px', padding: '14px 18px', marginBottom: '20px', fontSize: '13px', color: tema.textMuted, lineHeight: '1.7' }}>
+          <p style={{ margin: '0 0 8px', fontWeight: '500', color: tema.text }}>Para agregar un nuevo usuario:</p>
+          <ol style={{ margin: 0, paddingLeft: '20px' }}>
+            <li>Ir a Supabase Dashboard → Authentication → Add user</li>
+            <li>Crear el usuario con email y contraseña</li>
+            <li>Copiar el UUID generado</li>
+            <li>Completar el formulario de abajo y hacer clic en "Vincular usuario"</li>
+          </ol>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+          <div style={{ gridColumn: '1/-1' }}>
+            <label style={S.label}>Clínica *</label>
+            <select style={{ ...S.input, cursor: 'pointer' }} value={formUsuario.clinicaId} onChange={e => setU('clinicaId', e.target.value)}>
+              <option value="">-- Seleccionar clínica --</option>
+              {clinicas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select>
           </div>
           <div style={{ gridColumn: '1/-1' }}>
-            <label style={S.label}>Nombre completo *</label>
-            <input style={S.input} value={form.adminNombre} onChange={e => set('adminNombre', e.target.value)} placeholder="Ej: Dr. Juan Pérez" />
+            <label style={S.label}>UUID del usuario en Auth *</label>
+            <input style={S.input} value={formUsuario.userId} onChange={e => setU('userId', e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+          </div>
+          <div style={{ gridColumn: '1/-1' }}>
+            <label style={S.label}>Nombre completo</label>
+            <input style={S.input} value={formUsuario.nombre} onChange={e => setU('nombre', e.target.value)} placeholder="Ej: Dr. Juan Pérez" />
           </div>
           <div>
             <label style={S.label}>Email *</label>
-            <input type="email" style={S.input} value={form.adminEmail} onChange={e => set('adminEmail', e.target.value)} placeholder="admin@clinica.com" />
+            <input type="email" style={S.input} value={formUsuario.email} onChange={e => setU('email', e.target.value)} placeholder="usuario@clinica.com" />
           </div>
           <div>
-            <label style={S.label}>Contraseña inicial *</label>
-            <input type="password" style={S.input} value={form.adminPassword} onChange={e => set('adminPassword', e.target.value)} placeholder="Mín. 6 caracteres" />
+            <label style={S.label}>Rol</label>
+            <select style={{ ...S.input, cursor: 'pointer' }} value={formUsuario.rol} onChange={e => setU('rol', e.target.value)}>
+              <option value="admin">Admin</option>
+              <option value="veterinario">Veterinario</option>
+              <option value="recepcionista">Recepcionista</option>
+            </select>
           </div>
         </div>
-        <button onClick={crearClinica} disabled={creando}
-          style={{ ...S.btnPrimary, marginTop: '20px', padding: '12px 28px', opacity: creando ? 0.6 : 1 }}>
-          {creando ? 'Creando...' : 'Crear clínica'}
+        <button onClick={vincularUsuario} disabled={vinculando}
+          style={{ ...S.btnPrimary, marginTop: '20px', padding: '12px 28px', opacity: vinculando ? 0.6 : 1 }}>
+          {vinculando ? 'Vinculando...' : 'Vincular usuario'}
         </button>
       </div>
 

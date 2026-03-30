@@ -1,25 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { supabase } from './supabaseClient';
 import type { Usuario } from './supabaseClient';
 import { TEMAS } from './styles/theme';
 import type { Tema } from './styles/theme';
 import { VALVET_LOGO, LYNX_LOGO } from './styles/theme';
-
-import PantallaLogin         from './pages/Login';
-import PantallaInicio        from './pages/Inicio';
-import SeccionPacientes      from './pages/Pacientes';
-import SeccionPropietarios   from './pages/Propietarios';
-import SeccionIntervenciones from './pages/Intervenciones';
-import SeccionInventario     from './pages/Inventario';
-import SeccionTurnos         from './pages/Turnos';
-import SeccionFacturacion    from './pages/Facturacion';
-import SeccionRecetas        from './pages/Recetas';
-import SeccionCirugias       from './pages/Cirugias';
-import SeccionGastos         from './pages/Gastos';
-import SeccionReportes       from './pages/Reportes';
-import SeccionUsuarios       from './pages/Usuarios';
-import AdminLynx             from './pages/AdminLynx';
 import { ToastProvider, useToast } from './components/toast';
+
+const PantallaLogin         = lazy(() => import('./pages/Login'));
+const PantallaInicio        = lazy(() => import('./pages/Inicio'));
+const SeccionPacientes      = lazy(() => import('./pages/Pacientes'));
+const SeccionPropietarios   = lazy(() => import('./pages/Propietarios'));
+const SeccionIntervenciones = lazy(() => import('./pages/Intervenciones'));
+const SeccionInventario     = lazy(() => import('./pages/Inventario'));
+const SeccionTurnos         = lazy(() => import('./pages/Turnos'));
+const SeccionFacturacion    = lazy(() => import('./pages/Facturacion'));
+const SeccionRecetas        = lazy(() => import('./pages/Recetas'));
+const SeccionCirugias       = lazy(() => import('./pages/Cirugias'));
+const SeccionGastos         = lazy(() => import('./pages/Gastos'));
+const SeccionReportes       = lazy(() => import('./pages/Reportes'));
+const SeccionUsuarios       = lazy(() => import('./pages/Usuarios'));
+const AdminLynx             = lazy(() => import('./pages/AdminLynx'));
 
 // ── Alertas de stock bajo al iniciar sesión ───────────────────────────────────
 const StockAlertInit = ({ productos }: { productos: {nombre: string; stock_actual: number; unidad: string}[] }) => {
@@ -152,7 +152,11 @@ const App = () => {
     </div>
   );
 
-  if (!usuario) return <PantallaLogin onLogin={u => { setUsuario(u); navegarA('inicio'); }} />;
+  if (!usuario) return (
+    <Suspense fallback={<div style={{ minHeight: '100vh', background: TEMAS.dark.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: '#555', fontSize: '13px', letterSpacing: '0.06em' }}>Cargando...</p></div>}>
+      <PantallaLogin onLogin={u => { setUsuario(u); navegarA('inicio'); }} />
+    </Suspense>
+  );
 
   const ROL_BADGE: Record<string, { bg: string; color: string; border: string }> = {
     admin:         { bg: '#1a2a1a', color: '#5a9e5a', border: '#2d5a2d' },
@@ -279,19 +283,21 @@ const App = () => {
 
         {/* CONTENIDO */}
         <main style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
-          {vista === 'inicio'         && <PantallaInicio        usuario={usuario} onNavegar={navegarA} tema={tema} />}
-          {vista === 'turnos'         && <SeccionTurnos         usuario={usuario} tema={tema} />}
-          {vista === 'pacientes'      && <SeccionPacientes      usuario={usuario} tema={tema} />}
-          {vista === 'propietarios'   && <SeccionPropietarios   usuario={usuario} tema={tema} />}
-          {vista === 'intervenciones' && <SeccionIntervenciones usuario={usuario} tema={tema} />}
-          {vista === 'cirugias'       && <SeccionCirugias       usuario={usuario} tema={tema} />}
-          {vista === 'recetas'        && <SeccionRecetas        usuario={usuario} tema={tema} />}
-          {vista === 'stock'          && <SeccionInventario     usuario={usuario} tema={tema} />}
-          {vista === 'facturacion'    && <SeccionFacturacion    usuario={usuario} tema={tema} />}
-          {vista === 'gastos'         && <SeccionGastos         usuario={usuario} tema={tema} />}
-          {vista === 'reportes'       && <SeccionReportes       usuario={usuario} tema={tema} />}
-          {vista === 'usuarios'       && <SeccionUsuarios       usuario={usuario} tema={tema} />}
-          {vista === 'admin_lynx'     && <AdminLynx             usuario={usuario} tema={tema} />}
+          <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px' }}><p style={{ color: tema.textMuted, fontSize: '13px', letterSpacing: '0.06em' }}>Cargando...</p></div>}>
+            {vista === 'inicio'         && <PantallaInicio        usuario={usuario} onNavegar={navegarA} tema={tema} />}
+            {vista === 'turnos'         && <SeccionTurnos         usuario={usuario} tema={tema} />}
+            {vista === 'pacientes'      && <SeccionPacientes      usuario={usuario} tema={tema} />}
+            {vista === 'propietarios'   && <SeccionPropietarios   usuario={usuario} tema={tema} />}
+            {vista === 'intervenciones' && <SeccionIntervenciones usuario={usuario} tema={tema} />}
+            {vista === 'cirugias'       && <SeccionCirugias       usuario={usuario} tema={tema} />}
+            {vista === 'recetas'        && <SeccionRecetas        usuario={usuario} tema={tema} />}
+            {vista === 'stock'          && <SeccionInventario     usuario={usuario} tema={tema} />}
+            {vista === 'facturacion'    && <SeccionFacturacion    usuario={usuario} tema={tema} />}
+            {vista === 'gastos'         && <SeccionGastos         usuario={usuario} tema={tema} />}
+            {vista === 'reportes'       && <SeccionReportes       usuario={usuario} tema={tema} />}
+            {vista === 'usuarios'       && <SeccionUsuarios       usuario={usuario} tema={tema} />}
+            {vista === 'admin_lynx'     && <AdminLynx             usuario={usuario} tema={tema} />}
+          </Suspense>
         </main>
       </div>
     </div>}

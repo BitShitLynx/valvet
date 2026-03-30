@@ -14,6 +14,16 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+export async function queryConTimeout<T>(
+  promesa: PromiseLike<T>,
+  ms = 8000
+): Promise<T> {
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('La consulta tardó demasiado. Verificá tu conexión.')), ms)
+  );
+  return Promise.race([Promise.resolve(promesa), timeout]);
+}
+
 export interface Clinica    { id: string; nombre: string; direccion?: string; telefono?: string; email?: string; }
 export interface Usuario    { id: string; clinica_id: string; nombre: string; rol: 'admin' | 'veterinario' | 'recepcionista'; email: string; }
 export interface Propietario{ id: string; clinica_id: string; nombre: string; telefono?: string; direccion?: string; email?: string; }

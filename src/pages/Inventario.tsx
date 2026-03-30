@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../supabaseClient';
+import { supabase, queryConTimeout } from '../supabaseClient';
 import type { Usuario } from '../supabaseClient';
 import { makeS, CATEGORIAS_INV, UNIDADES_INV, COLORES_CAT } from '../styles/theme';
 import type { TemaObj } from '../styles/theme';
@@ -47,14 +47,12 @@ const SeccionInventario = ({ usuario, tema }: { usuario: Usuario; tema: TemaObj 
   // ── Carga desde Supabase ────────────────────────────────────────────────────
   const cargarProductos = useCallback(async () => {
     setLoading(true);
-    const { data, error: dbErr } = await supabase
-      .from('productos')
-      .select('*')
-      .eq('clinica_id', usuario.clinica_id)
-      .order('nombre');
-    console.log('Productos data:', data);
-    console.log('Productos error:', dbErr);
-    console.log('clinica_id usado:', usuario.clinica_id);
+    const { data, error: dbErr } = await queryConTimeout(
+      supabase.from('productos').select('*')
+        .eq('clinica_id', usuario.clinica_id)
+        .eq('activo', true)
+        .order('nombre')
+    );
     if (dbErr) { console.error('Error cargando productos:', dbErr); setError(dbErr.message); setLoading(false); return; }
     setProductos((data || []).map(mapearProducto));
     setLoading(false);

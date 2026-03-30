@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../supabaseClient';
+import { supabase, queryConTimeout } from '../supabaseClient';
 import type { Usuario, Paciente, Propietario, Consulta, Internacion, Aplicacion } from '../supabaseClient';
 import { makeS, ESTADO_CONFIG, ESPECIES, SEXOS, formatFecha } from '../styles/theme';
 import type { TemaObj } from '../styles/theme';
@@ -278,9 +278,11 @@ const SeccionPacientes = ({ usuario, tema }: { usuario: Usuario; tema: TemaObj }
 
   const cargar = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('pacientes').select('*, propietarios(*)').eq('clinica_id', usuario.clinica_id).order('created_at', { ascending: false });
+    const [{ data }, { data: owners }] = await Promise.all([
+      queryConTimeout(supabase.from('pacientes').select('*, propietarios(*)').eq('clinica_id', usuario.clinica_id).order('created_at', { ascending: false })),
+      queryConTimeout(supabase.from('propietarios').select('*').eq('clinica_id', usuario.clinica_id)),
+    ]);
     setPacientes((data || []) as Paciente[]);
-    const { data: owners } = await supabase.from('propietarios').select('*').eq('clinica_id', usuario.clinica_id);
     setPropietarios(owners || []);
     setLoading(false);
   }, [usuario.clinica_id]);

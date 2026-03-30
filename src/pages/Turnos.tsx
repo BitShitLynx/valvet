@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../supabaseClient';
+import { supabase, queryConTimeout } from '../supabaseClient';
 import type { Usuario } from '../supabaseClient';
 import { makeS } from '../styles/theme';
 import type { TemaObj } from '../styles/theme';
@@ -47,11 +47,11 @@ const SeccionTurnos = ({ usuario, tema }: { usuario: Usuario; tema: TemaObj }) =
   const cargar = useCallback(async () => {
     setLoading(true);
     const [t, tc, p, v] = await Promise.all([
-      supabase.from('turnos').select('*, pacientes(nombre,especie,raza), tipos_consulta(nombre,precio), usuarios(nombre)')
-        .eq('clinica_id', usuario.clinica_id).eq('fecha', fechaSel).order('hora', { ascending: true, nullsFirst: false }),
-      supabase.from('tipos_consulta').select('*').eq('clinica_id', usuario.clinica_id).eq('activo', true).order('nombre'),
-      supabase.from('pacientes').select('id,nombre,especie,raza').eq('clinica_id', usuario.clinica_id).order('nombre'),
-      supabase.from('usuarios').select('id,nombre,rol').eq('clinica_id', usuario.clinica_id),
+      queryConTimeout(supabase.from('turnos').select('*, pacientes(nombre,especie,raza), tipos_consulta(nombre,precio), usuarios(nombre)')
+        .eq('clinica_id', usuario.clinica_id).eq('fecha', fechaSel).order('hora', { ascending: true, nullsFirst: false })),
+      queryConTimeout(supabase.from('tipos_consulta').select('*').eq('clinica_id', usuario.clinica_id).eq('activo', true).order('nombre')),
+      queryConTimeout(supabase.from('pacientes').select('id,nombre,especie,raza').eq('clinica_id', usuario.clinica_id).order('nombre')),
+      queryConTimeout(supabase.from('usuarios').select('id,nombre,rol').eq('clinica_id', usuario.clinica_id)),
     ]);
     setTurnos((t.data || []) as Turno[]);
     setTipos(tc.data || []);

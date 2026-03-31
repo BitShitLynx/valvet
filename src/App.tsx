@@ -135,17 +135,23 @@ const App = () => {
             .from('clinicas').select('nombre')
             .eq('id', data.clinica_id).single();
           if (clinica) setClinicaNombre(clinica.nombre);
-          const notifActivas = localStorage.getItem('valvet-notificaciones') !== 'false';
-          const umbral = parseInt(localStorage.getItem('valvet-umbral-stock') || '5');
-          const { data: productosConPocoStock } = await supabase
-            .from('productos')
-            .select('nombre, stock_actual, unidad')
-            .eq('clinica_id', data.clinica_id)
-            .eq('activo', true)
-            .lte('stock_actual', umbral)
-            .order('stock_actual', { ascending: true });
-          if (notifActivas && productosConPocoStock && productosConPocoStock.length > 0) {
-            setStockAlertas(productosConPocoStock);
+          const alertasMostradas = sessionStorage.getItem('valvet-stock-alertas');
+          if (!alertasMostradas) {
+            const notifActivas = localStorage.getItem('valvet-notificaciones') !== 'false';
+            if (notifActivas) {
+              const umbral = parseInt(localStorage.getItem('valvet-umbral-stock') || '5');
+              const { data: productosConPocoStock } = await supabase
+                .from('productos')
+                .select('nombre, stock_actual, unidad')
+                .eq('clinica_id', data.clinica_id)
+                .eq('activo', true)
+                .lte('stock_actual', umbral)
+                .order('stock_actual', { ascending: true });
+              if (productosConPocoStock && productosConPocoStock.length > 0) {
+                setStockAlertas(productosConPocoStock);
+                sessionStorage.setItem('valvet-stock-alertas', 'true');
+              }
+            }
           }
         }
       }
@@ -159,7 +165,7 @@ const App = () => {
 
   const navegarA = (v: string) => { localStorage.setItem('valvet-vista', v); setVista(v); };
 
-  const logout = async () => { await supabase.auth.signOut(); localStorage.removeItem('valvet-vista'); setUsuario(null); setVista('inicio'); };
+  const logout = async () => { await supabase.auth.signOut(); localStorage.removeItem('valvet-vista'); sessionStorage.removeItem('valvet-stock-alertas'); setUsuario(null); setVista('inicio'); };
 
   if (checkingAuth) return (
     <div style={{ minHeight: '100vh', background: TEMAS.dark.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

@@ -83,9 +83,12 @@ const FormUsuario = ({ clinicaId, usuarioActual, usuario, onSave, onClose, tema 
     });
 
     if (dbErr) {
-      setError('Usuario creado en Auth pero error en DB: ' + dbErr.message);
+      setError('Error en DB: ' + dbErr.message);
       setSaving(false); return;
     }
+
+    // Refrescar sesión para mantener el usuario actual logueado
+    await supabase.auth.refreshSession();
 
     onSave(); onClose();
   };

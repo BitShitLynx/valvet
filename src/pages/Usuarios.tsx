@@ -31,45 +31,62 @@ const FormUsuario = ({ clinicaId, usuarioActual, usuario, onSave, onClose, tema 
   const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
 
   const guardar = async () => {
-    if (!form.nombre.trim())  { setError('El nombre es obligatorio.'); return; }
+    if (!form.nombre.trim()) { setError('El nombre es obligatorio.'); return; }
     if (!esEdicion) {
       if (!form.email.trim()) { setError('El email es obligatorio.'); return; }
-      if (form.password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres.'); return; }
-      if (form.password !== form.confirmPassword) { setError('Las contraseñas no coinciden.'); return; }
+      if (form.password.length < 6) {
+        setError('La contraseña debe tener al menos 6 caracteres.'); return;
+      }
+      if (form.password !== form.confirmPassword) {
+        setError('Las contraseñas no coinciden.'); return;
+      }
     }
     setSaving(true); setError('');
 
     if (esEdicion) {
-      // Solo edita nombre y rol en la tabla usuarios
       const { error: dbErr } = await supabase
-        .from('usuarios').update({ nombre: form.nombre.trim(), rol: form.rol }).eq('id', usuario!.id);
+        .from('usuarios')
+        .update({ nombre: form.nombre.trim(), rol: form.rol })
+        .eq('id', usuario!.id);
       if (dbErr) { setError(dbErr.message); setSaving(false); return; }
-    } else {
-      // Crear usuario en Auth + tabla usuarios
-      const { data, error: authErr } = await supabase.auth.admin.createUser({
-        email: form.email.trim(),
-        password: form.password,
-        email_confirm: true,
-      });
-      if (authErr || !data.user) {
-        // Fallback: usar signUp si no hay permisos de admin
-        const { data: su, error: suErr } = await supabase.auth.signUp({
-          email: form.email.trim(), password: form.password,
-        });
-        if (suErr || !su.user) { setError(suErr?.message || 'Error al crear usuario en Auth.'); setSaving(false); return; }
-        const { error: dbErr } = await supabase.from('usuarios').insert({
-          id: su.user.id, clinica_id: clinicaId,
-          nombre: form.nombre.trim(), email: form.email.trim(), rol: form.rol, activo: true,
-        });
-        if (dbErr) { setError(dbErr.message); setSaving(false); return; }
-      } else {
-        const { error: dbErr } = await supabase.from('usuarios').insert({
-          id: data.user.id, clinica_id: clinicaId,
-          nombre: form.nombre.trim(), email: form.email.trim(), rol: form.rol, activo: true,
-        });
-        if (dbErr) { setError(dbErr.message); setSaving(false); return; }
-      }
+      onSave(); onClose();
+      return;
     }
+
+    // Crear nuevo usuario
+    // Paso 1: signUp (crea en Auth sin cambiar sesión actual)
+    const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+      email: form.email.trim(),
+      password: form.password,
+      options: { data: { nombre: form.nombre.trim() } }
+    });
+
+    if (signUpErr) {
+      setError('Error al crear usuario: ' + signUpErr.message);
+      setSaving(false); return;
+    }
+
+    const userId = signUpData.user?.id;
+    if (!userId) {
+      setError('No se pudo obtener el ID del usuario creado.');
+      setSaving(false); return;
+    }
+
+    // Paso 2: insertar en tabla usuarios
+    const { error: dbErr } = await supabase.from('usuarios').insert({
+      id: userId,
+      clinica_id: clinicaId,
+      nombre: form.nombre.trim(),
+      email: form.email.trim(),
+      rol: form.rol,
+      activo: true,
+    });
+
+    if (dbErr) {
+      setError('Usuario creado en Auth pero error en DB: ' + dbErr.message);
+      setSaving(false); return;
+    }
+
     onSave(); onClose();
   };
 

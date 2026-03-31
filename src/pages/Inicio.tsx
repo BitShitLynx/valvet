@@ -51,9 +51,9 @@ const PantallaInicio = ({ usuario, onNavegar, tema }: { usuario: Usuario; onNave
                 (e.currentTarget as HTMLDivElement).style.background = tema.bgCard;
               }}
             >
-              <p style={{ margin: '0 0 6px', fontSize: '14px', fontWeight: '600', color: tema.text, letterSpacing: '0.01em' }}>{m.label}</p>
-              <p style={{ margin: '0 0 14px', fontSize: '12px', color: tema.textMuted, lineHeight: '1.4' }}>{m.desc}</p>
-              <p style={{ margin: 0, fontSize: '11px', color: '#4a7a4a', letterSpacing: '0.04em' }}>Abrir →</p>
+              <p style={{ margin: '0 0 6px', fontSize: '15px', fontWeight: '600', color: tema.text, letterSpacing: '0.01em' }}>{m.label}</p>
+              <p style={{ margin: '0 0 14px', fontSize: '13px', color: tema.textMuted, lineHeight: '1.4' }}>{m.desc}</p>
+              <p style={{ margin: 0, fontSize: '12px', color: '#4a7a4a', letterSpacing: '0.04em' }}>Abrir →</p>
             </div>
           ))}
         </div>

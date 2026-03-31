@@ -25,7 +25,10 @@ const AdminLynx             = lazy(() => import('./pages/AdminLynx'));
 const StockAlertInit = ({ productos }: { productos: {nombre: string; stock_actual: number; unidad: string}[] }) => {
   const { toast } = useToast();
   useEffect(() => {
-    productos.forEach((p, i) => {
+    const primeros = productos.slice(0, 3);
+    const restantes = productos.length - 3;
+
+    primeros.forEach((p, i) => {
       setTimeout(() => {
         toast(
           p.stock_actual === 0
@@ -33,8 +36,17 @@ const StockAlertInit = ({ productos }: { productos: {nombre: string; stock_actua
             : `Stock bajo: ${p.nombre} — ${p.stock_actual} ${p.unidad}`,
           p.stock_actual === 0 ? 'error' : 'warning'
         );
-      }, i * 600);
+      }, i * 500);
     });
+
+    if (restantes > 0) {
+      setTimeout(() => {
+        toast(
+          `${restantes} producto${restantes > 1 ? 's' : ''} más con stock crítico — revisá Inventario`,
+          'warning'
+        );
+      }, 3 * 500 + 300);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return null;
@@ -218,7 +230,7 @@ const App = () => {
           <p style={{ margin: '0 0 7px', fontSize: '14px', fontWeight: '600', color: '#c8c8c8', letterSpacing: '0.01em' }}>{usuario.nombre}</p>
           <span style={{ fontSize: '11px', background: rolStyle.bg, color: rolStyle.color, border: `1px solid ${rolStyle.border}`, padding: '2px 10px', borderRadius: '3px', letterSpacing: '0.08em', textTransform: 'uppercase' as const, fontWeight: '500' }}>{usuario.rol}</span>
           {clinicaNombre && (
-            <p style={{ margin: '8px 0 0', fontSize: '11px', color: '#3a3a3a', letterSpacing: '0.04em', borderTop: '1px solid #1e1e1e', paddingTop: '8px' }}>
+            <p style={{ margin: '8px 0 0', fontSize: '12px', color: '#666', letterSpacing: '0.04em', borderTop: '1px solid #1e1e1e', paddingTop: '8px' }}>
               {clinicaNombre}
             </p>
           )}
@@ -228,12 +240,12 @@ const App = () => {
         <nav style={{ flex: 1, overflowY: 'auto' }}>
           {NAV_GRUPOS.map(grupo => (
             <div key={grupo.label} style={{ marginBottom: '20px' }}>
-              <div style={{ fontSize: '11px', color: '#555', letterSpacing: '0.12em', textTransform: 'uppercase' as const, padding: '0 12px', marginBottom: '8px', fontWeight: '500' }}>{grupo.label}</div>
+              <div style={{ fontSize: '12px', color: '#666', letterSpacing: '0.12em', textTransform: 'uppercase' as const, padding: '0 12px', marginBottom: '8px', fontWeight: '500' }}>{grupo.label}</div>
               {grupo.items.map(({ key, label }) => (
                 <button key={key} onClick={() => navegarA(key)}
-                  style={{ width: '100%', padding: '10px 12px', border: 'none', borderRadius: '5px', textAlign: 'left', cursor: 'pointer', fontSize: '14px', letterSpacing: '0.02em', marginBottom: '1px', background: vista === key ? '#1a2a1a' : 'transparent', color: vista === key ? '#5a9e5a' : '#555', borderLeft: vista === key ? '2px solid #5a9e5a' : '2px solid transparent', fontWeight: vista === key ? '500' : '400' }}
-                  onMouseEnter={e => { if (vista !== key) { (e.currentTarget as HTMLButtonElement).style.background = '#181818'; (e.currentTarget as HTMLButtonElement).style.color = '#888'; } }}
-                  onMouseLeave={e => { if (vista !== key) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = '#555'; } }}
+                  style={{ width: '100%', padding: '10px 12px', border: 'none', borderRadius: '5px', textAlign: 'left', cursor: 'pointer', fontSize: '14px', letterSpacing: '0.02em', marginBottom: '1px', background: vista === key ? '#1a2a1a' : 'transparent', color: vista === key ? '#5a9e5a' : '#888', borderLeft: vista === key ? '2px solid #5a9e5a' : '2px solid transparent', fontWeight: vista === key ? '500' : '400' }}
+                  onMouseEnter={e => { if (vista !== key) { (e.currentTarget as HTMLButtonElement).style.background = '#181818'; (e.currentTarget as HTMLButtonElement).style.color = '#aaa'; } }}
+                  onMouseLeave={e => { if (vista !== key) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = '#888'; } }}
                 >{label}</button>
               ))}
             </div>

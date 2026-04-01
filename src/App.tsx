@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { supabase } from './supabaseClient';
 import type { Usuario } from './supabaseClient';
 import { TEMAS } from './styles/theme';
@@ -117,7 +117,6 @@ const App = () => {
   const [clinicaNombre, setClinicaNombre] = useState<string>('');
   const [stockAlertas, setStockAlertas] = useState<{nombre: string; stock_actual: number; unidad: string}[]>([]);
   const [modoRecuperacion, setModoRecuperacion] = useState(false);
-  const stockAlertaMostrada = useRef(false);
 
   const tema = TEMAS[temaKey];
 
@@ -137,8 +136,9 @@ const App = () => {
             .from('clinicas').select('nombre')
             .eq('id', data.clinica_id).single();
           if (clinica) setClinicaNombre(clinica.nombre);
-          if (!stockAlertaMostrada.current) {
-            stockAlertaMostrada.current = true;
+          const hoyKey = `valvet-stock-${data.id}-${new Date().toISOString().split('T')[0]}`;
+          if (!localStorage.getItem(hoyKey)) {
+            localStorage.setItem(hoyKey, 'true');
             const notifActivas = localStorage.getItem('valvet-notificaciones') !== 'false';
             if (notifActivas) {
               const umbral = parseInt(localStorage.getItem('valvet-umbral-stock') || '5');

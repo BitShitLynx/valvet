@@ -22,36 +22,68 @@ const SeccionUsuarios       = lazy(() => import('./pages/Usuarios'));
 const AdminLynx             = lazy(() => import('./pages/AdminLynx'));
 const SeccionAjustes        = lazy(() => import('./pages/Ajustes'));
 
-// ── Alertas de stock bajo al iniciar sesión ───────────────────────────────────
-const StockAlertInit = ({ productos }: { productos: {nombre: string; stock_actual: number; unidad: string}[] }) => {
-  const { toast } = useToast();
+// ── Modal de alerta de stock ──────────────────────────────────────────────────
+const StockAlertModal = ({ sinStock, stockBajo, onClose, onVerInventario }: {
+  sinStock: number; stockBajo: number; total: number;
+  onClose: () => void; onVerInventario: () => void;
+}) => {
   useEffect(() => {
-    const MAX_TOASTS = 3;
-    const primeros = productos.slice(0, MAX_TOASTS);
-    const restantes = productos.length - MAX_TOASTS;
-
-    primeros.forEach((p, i) => {
-      setTimeout(() => {
-        toast(
-          p.stock_actual === 0
-            ? `Sin stock: ${p.nombre}`
-            : `Stock bajo: ${p.nombre} — ${p.stock_actual} ${p.unidad}`,
-          p.stock_actual === 0 ? 'error' : 'warning'
-        );
-      }, i * 600);
-    });
-
-    if (restantes > 0) {
-      setTimeout(() => {
-        toast(
-          `${restantes} producto${restantes > 1 ? 's' : ''} más con stock crítico — revisá Inventario`,
-          'warning'
-        );
-      }, MAX_TOASTS * 600 + 400);
-    }
+    const timer = setTimeout(onClose, 4000);
+    return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  return null;
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0,
+      background: 'rgba(0,0,0,0.6)',
+      zIndex: 10000,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: '20px',
+      animation: 'fadeIn 0.2s ease',
+    }}>
+      <div style={{
+        background: '#141414', border: '1px solid #5a3a00',
+        borderRadius: '12px', padding: '28px 32px',
+        maxWidth: '380px', width: '100%', textAlign: 'center',
+      }}>
+        <div style={{
+          width: '48px', height: '48px', borderRadius: '50%',
+          background: '#2a1a00', border: '1px solid #8a6a00',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 16px', fontSize: '22px',
+        }}>⚠</div>
+        <h3 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: '600', color: '#d0d0d0' }}>
+          Alerta de stock
+        </h3>
+        <p style={{ margin: '0 0 16px', fontSize: '14px', color: '#888', lineHeight: '1.6' }}>
+          {sinStock > 0 && (
+            <span style={{ color: '#c07070', display: 'block' }}>
+              {sinStock} producto{sinStock > 1 ? 's' : ''} sin stock
+            </span>
+          )}
+          {stockBajo > 0 && (
+            <span style={{ color: '#c0a040', display: 'block' }}>
+              {stockBajo} producto{stockBajo > 1 ? 's' : ''} con stock bajo
+            </span>
+          )}
+        </p>
+        <div style={{ width: '100%', height: '3px', background: '#2a2a2a', borderRadius: '99px', marginBottom: '20px', overflow: 'hidden' }}>
+          <div style={{ height: '100%', background: '#8a6a00', borderRadius: '99px', animation: 'shrink 4s linear forwards' }} />
+        </div>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={onVerInventario}
+            style={{ flex: 1, padding: '11px', background: '#1a2a1a', border: '1px solid #2d5a2d', borderRadius: '6px', color: '#5a9e5a', cursor: 'pointer', fontSize: '13px', fontWeight: '500', letterSpacing: '0.03em' }}>
+            Ver inventario
+          </button>
+          <button onClick={onClose}
+            style={{ padding: '11px 20px', background: 'transparent', border: '1px solid #2a2a2a', borderRadius: '6px', color: '#555', cursor: 'pointer', fontSize: '13px' }}>
+            Aceptar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 // ── Pantalla cambio de contraseña (recovery link) ─────────────────────────────
@@ -115,7 +147,7 @@ const App = () => {
     () => (localStorage.getItem('valvet-tema') as Tema) || 'dark'
   );
   const [clinicaNombre, setClinicaNombre] = useState<string>('');
-  const [stockAlertas, setStockAlertas] = useState<{nombre: string; stock_actual: number; unidad: string}[]>([]);
+  const [stockModal, setStockModal] = useState<{ sinStock: number; stockBajo: number; total: number } | null>(null);
   const [modoRecuperacion, setModoRecuperacion] = useState(false);
 
   const tema = TEMAS[temaKey];
@@ -142,15 +174,16 @@ const App = () => {
             const notifActivas = localStorage.getItem('valvet-notificaciones') !== 'false';
             if (notifActivas) {
               const umbral = parseInt(localStorage.getItem('valvet-umbral-stock') || '5');
-              const { data: productosConPocoStock } = await supabase
+              const { data: productos } = await supabase
                 .from('productos')
-                .select('nombre, stock_actual, unidad')
+                .select('stock_actual')
                 .eq('clinica_id', data.clinica_id)
                 .eq('activo', true)
-                .lte('stock_actual', umbral)
-                .order('stock_actual', { ascending: true });
-              if (productosConPocoStock && productosConPocoStock.length > 0) {
-                setStockAlertas(productosConPocoStock);
+                .lte('stock_actual', umbral);
+              if (productos && productos.length > 0) {
+                const sinStock = productos.filter(p => p.stock_actual === 0).length;
+                const stockBajo = productos.filter(p => p.stock_actual > 0).length;
+                setStockModal({ sinStock, stockBajo, total: productos.length });
               }
             }
           }
@@ -222,7 +255,15 @@ const App = () => {
   return (
     <ToastProvider>
     {modoRecuperacion && <PantallaRecuperacion onDone={() => setModoRecuperacion(false)} />}
-    {stockAlertas.length > 0 && <StockAlertInit productos={stockAlertas} />}
+    {stockModal && (
+      <StockAlertModal
+        sinStock={stockModal.sinStock}
+        stockBajo={stockModal.stockBajo}
+        total={stockModal.total}
+        onClose={() => setStockModal(null)}
+        onVerInventario={() => { setStockModal(null); navegarA('stock'); }}
+      />
+    )}
     {!modoRecuperacion && <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: tema.bg, color: tema.text, fontFamily: "'Inter', system-ui, sans-serif" }}>
 
       {/* SIDEBAR */}

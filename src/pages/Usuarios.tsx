@@ -18,89 +18,120 @@ const FormUsuario = ({ clinicaId, usuarioActual, usuario, onSave, onClose, tema 
   onSave: () => void; onClose: () => void; tema: TemaObj;
 }) => {
   const S = makeS(tema);
+  const { toast } = useToast();
   const esEdicion = !!usuario;
   const [form, setForm] = useState({
     nombre: usuario?.nombre || '',
     email:  usuario?.email  || '',
     rol:    usuario?.rol    || 'veterinario',
-    password: '',
-    confirmPassword: '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
+  const [mostrarInstrucciones, setMostrarInstrucciones] = useState(false);
+  const [authId, setAuthId] = useState('');
   const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
 
   const guardar = async () => {
     if (!form.nombre.trim()) { setError('El nombre es obligatorio.'); return; }
-    if (!esEdicion) {
-      if (!form.email.trim()) { setError('El email es obligatorio.'); return; }
-      if (form.password.length < 6) {
-        setError('La contraseña debe tener al menos 6 caracteres.'); return;
-      }
-      if (form.password !== form.confirmPassword) {
-        setError('Las contraseñas no coinciden.'); return;
-      }
-    }
-    setSaving(true); setError('');
 
     if (esEdicion) {
+      setSaving(true); setError('');
       const { error: dbErr } = await supabase
         .from('usuarios')
         .update({ nombre: form.nombre.trim(), rol: form.rol })
         .eq('id', usuario!.id);
       if (dbErr) { setError(dbErr.message); setSaving(false); return; }
+      toast('Usuario actualizado', 'success');
       onSave(); onClose();
       return;
     }
 
-    // Crear nuevo usuario
-    // Paso 1: signUp (crea en Auth sin cambiar sesión actual)
-    const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
-      email: form.email.trim(),
-      password: form.password,
-      options: { data: { nombre: form.nombre.trim() } }
-    });
+    // Crear nuevo — validaciones
+    if (!form.email.trim()) { setError('El email es obligatorio.'); return; }
 
-    if (signUpErr) {
-      setError('Error al crear usuario: ' + signUpErr.message);
+    setSaving(true); setError('');
+
+    // Verificar que el email no existe ya en la clínica
+    const { data: existe } = await supabase
+      .from('usuarios')
+      .select('id')
+      .eq('email', form.email.trim())
+      .eq('clinica_id', clinicaId)
+      .single();
+
+    if (existe) {
+      setError('Ya existe un usuario con ese email en esta clínica.');
       setSaving(false); return;
     }
 
-    const userId = signUpData.user?.id;
-    if (!userId) {
-      setError('No se pudo obtener el ID del usuario creado.');
-      setSaving(false); return;
-    }
+    // Mostrar instrucciones en vez de crear automáticamente
+    setMostrarInstrucciones(true);
+    setSaving(false);
+  };
 
-    // Paso 2: insertar en tabla usuarios
+  const vincularUsuario = async (id: string) => {
+    if (!id.trim()) { setError('Ingresá el UUID del usuario.'); return; }
+    setSaving(true);
     const { error: dbErr } = await supabase.from('usuarios').insert({
-      id: userId,
+      id: id.trim(),
       clinica_id: clinicaId,
       nombre: form.nombre.trim(),
       email: form.email.trim(),
       rol: form.rol,
       activo: true,
     });
-
-    if (dbErr) {
-      setError('Error en DB: ' + dbErr.message);
-      setSaving(false); return;
-    }
-
-    // Refrescar sesión para mantener el usuario actual logueado
-    await supabase.auth.refreshSession();
-
+    if (dbErr) { setError('Error: ' + dbErr.message); setSaving(false); return; }
+    toast('Usuario creado correctamente', 'success');
     onSave(); onClose();
   };
+
+  if (mostrarInstrucciones) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ background: '#0a1a0a', border: '1px solid #2d5a2d', borderRadius: '8px', padding: '16px' }}>
+          <p style={{ margin: '0 0 12px', fontSize: '13px', fontWeight: '600', color: tema.accent }}>
+            Pasos para crear el usuario
+          </p>
+          <ol style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: tema.textMuted, lineHeight: '2' }}>
+            <li>Ir a <strong style={{ color: tema.text }}>supabase.com</strong> → Authentication → Users → Add user</li>
+            <li>Email: <strong style={{ color: tema.text }}>{form.email}</strong></li>
+            <li>Crear una contraseña temporal</li>
+            <li>Copiar el UUID generado y pegarlo abajo</li>
+            <li>Confirmar email con SQL:<br />
+              <code style={{ fontSize: '11px', background: '#111', padding: '4px 8px', borderRadius: '4px', color: '#7ab87a', display: 'block', marginTop: '4px' }}>
+                update auth.users set email_confirmed_at = now() where email = '{form.email}';
+              </code>
+            </li>
+          </ol>
+        </div>
+        <div>
+          <label style={S.label}>UUID del usuario (de Supabase Auth)</label>
+          <input
+            style={S.input}
+            value={authId}
+            onChange={e => setAuthId(e.target.value)}
+            placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+          />
+        </div>
+        {error && (
+          <div style={{ background: '#200a0a', border: '1px solid #5a2020', borderRadius: '6px', padding: '10px', color: '#c07070', fontSize: '13px' }}>
+            {error}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={() => vincularUsuario(authId)} disabled={saving}
+            style={{ ...S.btnPrimary, flex: 1, padding: '12px', opacity: saving ? 0.6 : 1 }}>
+            {saving ? 'Vinculando...' : 'Vincular usuario'}
+          </button>
+          <button onClick={() => setMostrarInstrucciones(false)} style={S.btnGhost}>Volver</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
       {error && <div style={{ background: '#450a0a', border: '1px solid #dc2626', borderRadius: '8px', padding: '10px', color: '#f87171', marginBottom: '15px' }}>{error}</div>}
-      {!esEdicion && (
-        <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '8px', padding: '10px', marginBottom: '16px', fontSize: '13px', color: tema.textMuted }}>
-          ℹ️ El usuario recibirá un email de confirmación. Una vez confirmado podrá ingresar a la plataforma.
-        </div>
-      )}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
         <div style={{ gridColumn: '1/-1' }}>
           <label style={S.label}>Nombre completo *</label>
@@ -110,6 +141,9 @@ const FormUsuario = ({ clinicaId, usuarioActual, usuario, onSave, onClose, tema 
           <div style={{ gridColumn: '1/-1' }}>
             <label style={S.label}>Email *</label>
             <input type="email" style={S.input} value={form.email} onChange={e => set('email', e.target.value)} placeholder="usuario@clinica.com" />
+            <p style={{ fontSize: '11px', color: tema.textMuted, margin: '6px 0 0' }}>
+              Se te guiará para crear el usuario en Supabase Auth
+            </p>
           </div>
         )}
         <div style={{ gridColumn: '1/-1' }}>
@@ -124,18 +158,6 @@ const FormUsuario = ({ clinicaId, usuarioActual, usuario, onSave, onClose, tema 
             ))}
           </div>
         </div>
-        {!esEdicion && (
-          <>
-            <div>
-              <label style={S.label}>Contraseña *</label>
-              <input type="password" style={S.input} value={form.password} onChange={e => set('password', e.target.value)} placeholder="Mín. 6 caracteres" />
-            </div>
-            <div>
-              <label style={S.label}>Confirmar contraseña *</label>
-              <input type="password" style={S.input} value={form.confirmPassword} onChange={e => set('confirmPassword', e.target.value)} placeholder="Repetir contraseña" />
-            </div>
-          </>
-        )}
       </div>
       <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
         <button onClick={guardar} disabled={saving} style={{ ...S.btnPrimary, flex: 1, padding: '14px', opacity: saving ? 0.6 : 1 }}>

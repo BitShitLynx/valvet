@@ -10,7 +10,7 @@ import { useToast } from '../components/toast';
 const FormPaciente = ({ clinicaId, paciente, propietarios, onSave, onClose, tema }: { clinicaId: string; paciente?: Paciente; propietarios: Propietario[]; onSave: () => void; onClose: () => void; tema: TemaObj }) => {
   const S = makeS(tema); const esEdicion = !!paciente;
   const { toast } = useToast();
-  const [form, setForm] = useState({ nombre: paciente?.nombre || '', especie: paciente?.especie || 'Canino', raza: paciente?.raza || '', sexo: paciente?.sexo || 'No especificado', edad_años: paciente?.edad_años?.toString() || '', edad_meses: paciente?.edad_meses?.toString() || '', peso_kg: paciente?.peso_kg?.toString() || '', color: paciente?.color || '', microchip: paciente?.microchip || '', estado: paciente?.estado || 'ambulatorio', propietario_id: paciente?.propietario_id || '' });
+  const [form, setForm] = useState({ nombre: paciente?.nombre || '', especie: paciente?.especie || 'Canino', raza: paciente?.raza || '', sexo: paciente?.sexo || 'No especificado', edad_años: paciente?.edad_años?.toString() || '', edad_meses: paciente?.edad_meses?.toString() || '', peso_kg: paciente?.peso_kg?.toString() || '', color: paciente?.color || '', microchip: paciente?.microchip || '', estado: paciente?.estado || 'ambulatorio', propietario_id: paciente?.propietario_id || '', castrado: paciente?.castrado || false, antirrabica: paciente?.antirrabica || false, vacunas: paciente?.vacunas || [] });
   const [nuevoOwner, setNuevoOwner] = useState({ nombre: '', telefono: '', direccion: '', email: '' });
   const [crearOwner, setCrearOwner] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -26,7 +26,7 @@ const FormPaciente = ({ clinicaId, paciente, propietarios, onSave, onClose, tema
       if (oe) { toast('Error al crear propietario: ' + oe.message, 'error'); setSaving(false); return; }
       propietario_id = od.id;
     }
-    const payload = { clinica_id: clinicaId, propietario_id, nombre: form.nombre.trim(), especie: form.especie, raza: form.raza || null, sexo: form.sexo, edad_años: form.edad_años ? parseInt(form.edad_años) : null, edad_meses: form.edad_meses ? parseInt(form.edad_meses) : null, peso_kg: form.peso_kg ? parseFloat(form.peso_kg) : null, color: form.color || null, microchip: form.microchip || null, estado: form.estado };
+    const payload = { clinica_id: clinicaId, propietario_id, nombre: form.nombre.trim(), especie: form.especie, raza: form.raza || null, sexo: form.sexo, edad_años: form.edad_años ? parseInt(form.edad_años) : null, edad_meses: form.edad_meses ? parseInt(form.edad_meses) : null, peso_kg: form.peso_kg ? parseFloat(form.peso_kg) : null, color: form.color || null, microchip: form.microchip || null, estado: form.estado, castrado: form.castrado || false, antirrabica: form.antirrabica || false, vacunas: form.vacunas || [] };
     const { error: dbErr } = esEdicion ? await supabase.from('pacientes').update(payload).eq('id', paciente!.id) : await supabase.from('pacientes').insert(payload);
     if (dbErr) { toast('Error al guardar: ' + dbErr.message, 'error'); setSaving(false); return; }
     if (!esEdicion && form.estado === 'internado') {
@@ -51,6 +51,24 @@ const FormPaciente = ({ clinicaId, paciente, propietarios, onSave, onClose, tema
         <div><label style={S.label}>Peso (kg)</label><input style={S.input} type="number" min="0" step="0.1" value={form.peso_kg} onChange={e => set('peso_kg', e.target.value)} placeholder="0.0" /></div>
         <div><label style={S.label}>Color / pelaje</label><input style={S.input} value={form.color} onChange={e => set('color', e.target.value)} placeholder="Ej: Dorado" /></div>
         <div style={{ gridColumn: '1/-1' }}><label style={S.label}>Nº Microchip</label><input style={S.input} value={form.microchip} onChange={e => set('microchip', e.target.value)} placeholder="Opcional" /></div>
+        <div style={{ gridColumn: '1/-1', display: 'flex', flexDirection: 'column', gap: '12px', borderTop: `1px solid ${tema.border}`, paddingTop: '16px' }}>
+          <p style={{ margin: 0, fontSize: '11px', color: tema.textMuted, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: '500' }}>Estado sanitario</p>
+          <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={form.castrado || false} onChange={e => setForm(p => ({ ...p, castrado: e.target.checked }))} style={{ width: '16px', height: '16px', accentColor: tema.accent }} />
+              <span style={{ fontSize: '14px', color: tema.text }}>Castrado/a</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={form.antirrabica || false} onChange={e => setForm(p => ({ ...p, antirrabica: e.target.checked }))} style={{ width: '16px', height: '16px', accentColor: tema.accent }} />
+              <span style={{ fontSize: '14px', color: tema.text }}>Antirrábica al día</span>
+            </label>
+          </div>
+          <div>
+            <label style={S.label}>Otras vacunas (separadas por coma)</label>
+            <input type="text" style={S.input} value={(form.vacunas || []).join(', ')} onChange={e => setForm(p => ({ ...p, vacunas: e.target.value.split(',').map(v => v.trim()).filter(Boolean) }))} placeholder="Ej: Séxtuple, Triple felina, Tos de las perreras" />
+            <p style={{ fontSize: '11px', color: tema.textMuted, margin: '5px 0 0' }}>Ingresá las vacunas separadas por coma</p>
+          </div>
+        </div>
         <div style={{ gridColumn: '1/-1' }}>
           <label style={S.label}>Propietario</label>
           {!crearOwner ? (
@@ -183,21 +201,44 @@ const FichaPaciente = ({ paciente, clinicaId, usuarioId, onClose: _onClose, onUp
       </div>
       {loading && <p style={{ color: tema.textMuted }}>Cargando...</p>}
       {tab === 'info' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-          {[['Especie', paciente.especie], ['Raza', paciente.raza || '—'], ['Sexo', paciente.sexo || '—'], ['Edad', paciente.edad_años != null ? `${paciente.edad_años} años ${paciente.edad_meses || 0} meses` : '—'], ['Peso', paciente.peso_kg ? `${paciente.peso_kg} kg` : '—'], ['Color', paciente.color || '—'], ['Microchip', paciente.microchip || '—'], ['Registro', formatFecha(paciente.fecha_registro)]].map(([label, val]) => (
-            <div key={label} style={{ background: tema.bgInput, padding: '12px', borderRadius: '8px' }}>
-              <p style={{ ...S.label, margin: 0 }}>{label}</p>
-              <p style={{ margin: '4px 0 0', fontWeight: 'bold', color: tema.text }}>{val}</p>
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            {[['Especie', paciente.especie], ['Raza', paciente.raza || '—'], ['Sexo', paciente.sexo || '—'], ['Edad', paciente.edad_años != null ? `${paciente.edad_años} años ${paciente.edad_meses || 0} meses` : '—'], ['Peso', paciente.peso_kg ? `${paciente.peso_kg} kg` : '—'], ['Color', paciente.color || '—'], ['Microchip', paciente.microchip || '—'], ['Registro', formatFecha(paciente.fecha_registro)]].map(([label, val]) => (
+              <div key={label} style={{ background: tema.bgInput, padding: '12px', borderRadius: '8px' }}>
+                <p style={{ ...S.label, margin: 0 }}>{label}</p>
+                <p style={{ margin: '4px 0 0', fontWeight: 'bold', color: tema.text }}>{val}</p>
+              </div>
+            ))}
+            {paciente.propietarios && (
+              <div style={{ gridColumn: '1/-1', background: tema.bgInput, padding: '12px', borderRadius: '8px' }}>
+                <p style={{ ...S.label, margin: 0 }}>Propietario</p>
+                <p style={{ margin: '4px 0 0', fontWeight: 'bold', color: tema.text }}>{paciente.propietarios.nombre}</p>
+                <p style={{ margin: '2px 0 0', color: tema.textMuted, fontSize: '13px' }}>{paciente.propietarios.telefono}{paciente.propietarios.direccion ? ` · ${paciente.propietarios.direccion}` : ''}</p>
+              </div>
+            )}
+          </div>
+          <div style={{ ...S.card, marginTop: '16px' }}>
+            <p style={{ margin: '0 0 14px', fontSize: '11px', color: tema.textMuted, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: '500' }}>Estado sanitario</p>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '14px' }}>
+              <span style={{ padding: '5px 14px', borderRadius: '99px', fontSize: '12px', fontWeight: '500', letterSpacing: '0.03em', background: paciente.castrado ? '#1a2a1a' : '#2a1a1a', color: paciente.castrado ? '#5a9e5a' : '#c07070', border: `1px solid ${paciente.castrado ? '#2d5a2d' : '#5a2020'}` }}>
+                {paciente.castrado ? 'Castrado/a' : 'Sin castrar'}
+              </span>
+              <span style={{ padding: '5px 14px', borderRadius: '99px', fontSize: '12px', fontWeight: '500', letterSpacing: '0.03em', background: paciente.antirrabica ? '#1a2a1a' : '#2a1a1a', color: paciente.antirrabica ? '#5a9e5a' : '#c07070', border: `1px solid ${paciente.antirrabica ? '#2d5a2d' : '#5a2020'}` }}>
+                {paciente.antirrabica ? 'Antirrábica al día' : 'Sin antirrábica'}
+              </span>
             </div>
-          ))}
-          {paciente.propietarios && (
-            <div style={{ gridColumn: '1/-1', background: tema.bgInput, padding: '12px', borderRadius: '8px' }}>
-              <p style={{ ...S.label, margin: 0 }}>Propietario</p>
-              <p style={{ margin: '4px 0 0', fontWeight: 'bold', color: tema.text }}>{paciente.propietarios.nombre}</p>
-              <p style={{ margin: '2px 0 0', color: tema.textMuted, fontSize: '13px' }}>{paciente.propietarios.telefono}{paciente.propietarios.direccion ? ` · ${paciente.propietarios.direccion}` : ''}</p>
-            </div>
-          )}
-        </div>
+            {paciente.vacunas && paciente.vacunas.length > 0 && (
+              <div>
+                <p style={{ margin: '0 0 8px', fontSize: '12px', color: tema.textMuted }}>Otras vacunas:</p>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {paciente.vacunas.map((v, i) => (
+                    <span key={i} style={{ padding: '4px 12px', borderRadius: '99px', fontSize: '12px', background: '#1a1e2a', color: '#5a7aae', border: '1px solid #2d3a6a' }}>{v}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </>
       )}
       {tab === 'consultas' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

@@ -12,6 +12,7 @@ interface Receta {
   diagnostico?: string; indicaciones?: string; matricula?: string;
   pacientes?: { nombre: string; especie: string; raza?: string };
   usuarios?: { nombre: string };
+  propietarios?: { email?: string };
   receta_items?: RecetaItem[];
 }
 
@@ -20,60 +21,235 @@ const fmtFecha = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString
 const itemVacio = (): RecetaItem => ({ medicamento: '', dosis: '', frecuencia: '', dias: '', observaciones: '' });
 
 // ── VISTA IMPRESIÓN ────────────────────────────────────────────────────────────
-const VistaImpresion = ({ receta, clinicaNombre, tema: _tema }: { receta: Receta; clinicaNombre: string; tema: TemaObj }) => {
+const VistaImpresion = ({ receta, tema: _tema }: { receta: Receta; clinicaNombre: string; tema: TemaObj }) => {
   const imprimir = () => {
-    const contenido = document.getElementById('receta-print')?.innerHTML || '';
     const ventana = window.open('', '_blank');
     if (!ventana) return;
-    ventana.document.write(`
-      <html><head><title>Receta — ${receta.pacientes?.nombre}</title>
-      <style>
-        body { font-family: Arial, sans-serif; padding: 40px; color: #000; max-width: 700px; margin: 0 auto; }
-        h1 { font-size: 22px; margin-bottom: 4px; } h2 { font-size: 16px; font-weight: normal; color: #555; }
-        .seccion { margin-top: 24px; } .seccion h3 { font-size: 13px; text-transform: uppercase; color: #888; border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-bottom: 10px; }
-        .item { background: #f9f9f9; padding: 12px; border-radius: 6px; margin-bottom: 10px; }
-        .item strong { font-size: 15px; } .item p { margin: 4px 0; font-size: 13px; color: #555; }
-        .firma { margin-top: 60px; border-top: 1px solid #000; padding-top: 8px; display: inline-block; min-width: 200px; text-align: center; }
-        @media print { body { padding: 20px; } }
-      </style></head><body>${contenido}</body></html>
-    `);
+    const nombreVet = receta.usuarios?.nombre || '—';
+    const matricula = receta.matricula || '';
+    const htmlReceta = `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Receta — ${receta.pacientes?.nombre}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Georgia', serif;
+      color: #1a1a1a;
+      background: white;
+      padding: 0;
+    }
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      padding: 20mm 18mm;
+      position: relative;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #1a1a1a;
+      margin-bottom: 28px;
+    }
+    .header-logo {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: #1a1a1a;
+    }
+    .header-sub {
+      font-size: 11px;
+      color: #666;
+      margin-top: 4px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .header-right {
+      text-align: right;
+      font-size: 12px;
+      color: #555;
+      line-height: 1.8;
+    }
+    .seccion {
+      margin-bottom: 24px;
+    }
+    .seccion-titulo {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #888;
+      margin-bottom: 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .seccion-contenido {
+      font-size: 14px;
+      line-height: 1.6;
+      color: #1a1a1a;
+    }
+    .paciente-nombre {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin-bottom: 4px;
+    }
+    .paciente-detalle {
+      font-size: 13px;
+      color: #555;
+    }
+    .medicamento {
+      padding: 12px 16px;
+      border-left: 3px solid #1a1a1a;
+      margin-bottom: 14px;
+      background: #f9f9f9;
+    }
+    .med-nombre {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 5px;
+      text-transform: capitalize;
+    }
+    .med-detalle {
+      font-size: 12px;
+      color: #555;
+      line-height: 1.8;
+    }
+    .med-obs {
+      font-size: 12px;
+      color: #333;
+      font-style: italic;
+      margin-top: 4px;
+    }
+    .firma {
+      position: absolute;
+      bottom: 24mm;
+      left: 18mm;
+      right: 18mm;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .firma-vet {
+      text-align: center;
+      min-width: 180px;
+    }
+    .firma-linea {
+      border-top: 1px solid #1a1a1a;
+      width: 180px;
+      margin: 0 auto 8px;
+    }
+    .firma-nombre {
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .firma-mat {
+      font-size: 11px;
+      color: #666;
+      margin-top: 3px;
+    }
+    .sello {
+      width: 80px;
+      height: 80px;
+      border: 2px solid #e0e0e0;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      color: #ccc;
+      letter-spacing: 0.05em;
+    }
+    @media print {
+      body { print-color-adjust: exact; }
+      .page { padding: 15mm 15mm; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div>
+      <div class="header-logo">ValVet</div>
+      <div class="header-sub">Receta Veterinaria</div>
+    </div>
+    <div class="header-right">
+      <div>${new Date(receta.fecha).toLocaleDateString('es-AR', {
+        day: '2-digit', month: 'long', year: 'numeric'
+      })}</div>
+      <div>N° ${receta.id.slice(-6).toUpperCase()}</div>
+    </div>
+  </div>
+
+  <div class="seccion">
+    <div class="seccion-titulo">Paciente</div>
+    <div class="paciente-nombre">${receta.pacientes?.nombre || '—'}</div>
+    <div class="paciente-detalle">
+      ${receta.pacientes?.especie || ''} · ${receta.pacientes?.raza || ''}
+    </div>
+  </div>
+
+  ${receta.diagnostico ? `
+  <div class="seccion">
+    <div class="seccion-titulo">Diagnóstico</div>
+    <div class="seccion-contenido">${receta.diagnostico}</div>
+  </div>` : ''}
+
+  <div class="seccion">
+    <div class="seccion-titulo">Medicamentos prescriptos</div>
+    ${(receta.receta_items || []).map((item: RecetaItem) => `
+      <div class="medicamento">
+        <div class="med-nombre">${item.medicamento}</div>
+        <div class="med-detalle">
+          ${item.dosis ? `Dosis: ${item.dosis}` : ''}
+          ${item.frecuencia ? ` · Frecuencia: ${item.frecuencia}` : ''}
+          ${item.dias ? ` · Días: ${item.dias}` : ''}
+        </div>
+        ${item.observaciones ? `
+          <div class="med-obs">Obs: ${item.observaciones}</div>
+        ` : ''}
+      </div>
+    `).join('')}
+  </div>
+
+  ${receta.indicaciones ? `
+  <div class="seccion">
+    <div class="seccion-titulo">Indicaciones generales</div>
+    <div class="seccion-contenido">${receta.indicaciones}</div>
+  </div>` : ''}
+
+  <div class="firma">
+    <div class="firma-vet">
+      <div class="firma-linea"></div>
+      <div class="firma-nombre">${nombreVet}</div>
+      ${matricula ? `<div class="firma-mat">Mat. ${matricula}</div>` : ''}
+    </div>
+    <div class="sello">SELLO</div>
+  </div>
+
+</div>
+</body>
+</html>
+`;
+    ventana.document.write(htmlReceta);
     ventana.document.close();
     ventana.print();
   };
 
   return (
     <div>
-      <div id="receta-print">
-        <h1>{clinicaNombre}</h1>
-        <h2>Receta Veterinaria — {fmtFecha(receta.fecha)}</h2>
-        <div className="seccion">
-          <h3>Paciente</h3>
-          <p><strong>{receta.pacientes?.nombre}</strong> — {receta.pacientes?.especie}{receta.pacientes?.raza ? ` · ${receta.pacientes.raza}` : ''}</p>
-        </div>
-        {receta.diagnostico && <div className="seccion"><h3>Diagnóstico</h3><p>{receta.diagnostico}</p></div>}
-        {(receta.receta_items || []).length > 0 && (
-          <div className="seccion">
-            <h3>Medicamentos prescriptos</h3>
-            {(receta.receta_items || []).map((it, i) => (
-              <div key={i} className="item">
-                <strong>{it.medicamento}</strong>
-                <p>Dosis: {it.dosis || '—'} · Frecuencia: {it.frecuencia || '—'} · Días: {it.dias || '—'}</p>
-                {it.observaciones && <p>Obs: {it.observaciones}</p>}
-              </div>
-            ))}
-          </div>
-        )}
-        {receta.indicaciones && <div className="seccion"><h3>Indicaciones generales</h3><p>{receta.indicaciones}</p></div>}
-        <div style={{ marginTop: '60px' }}>
-          <div className="firma">
-            <p><strong>{receta.usuarios?.nombre || '—'}</strong></p>
-            {receta.matricula && <p>Mat. {receta.matricula}</p>}
-          </div>
-        </div>
-      </div>
+      <p style={{ marginBottom: '16px', fontSize: '13px', color: '#888' }}>
+        Se abrirá una ventana con el formato de impresión A4.
+      </p>
       <button onClick={imprimir}
-        style={{ marginTop: '20px', padding: '12px 28px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', width: '100%' }}>
-        🖨️ IMPRIMIR RECETA
+        style={{ padding: '12px 28px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', width: '100%' }}>
+        Imprimir receta
       </button>
     </div>
   );
@@ -206,12 +382,43 @@ const SeccionRecetas = ({ usuario, tema }: { usuario: Usuario; tema: TemaObj }) 
     setLoading(true);
     const { data } = await supabase
       .from('recetas')
-      .select('*, pacientes(nombre,especie,raza), usuarios(nombre), receta_items(*)')
+      .select('*, pacientes(nombre,especie,raza), usuarios(nombre), propietarios(email), receta_items(*)')
       .eq('clinica_id', usuario.clinica_id)
       .order('fecha', { ascending: false });
     setRecetas((data || []) as Receta[]);
     setLoading(false);
   }, [usuario.clinica_id]);
+
+  const enviarEmail = (receta: Receta) => {
+    const propietarioEmail = receta.propietarios?.email || '';
+    const paciente = receta.pacientes?.nombre || 'paciente';
+    const fecha = new Date(receta.fecha).toLocaleDateString('es-AR');
+
+    const subject = encodeURIComponent(
+      `Receta veterinaria — ${paciente} — ${fecha}`
+    );
+
+    const body = encodeURIComponent(
+      `Estimado/a propietario/a,\n\n` +
+      `Adjunto encontrará la receta veterinaria de ${paciente} ` +
+      `correspondiente al ${fecha}.\n\n` +
+      `Por favor imprima este email o guárdelo para presentarlo ` +
+      `en la farmacia veterinaria.\n\n` +
+      `— ValVet\n\n` +
+      `---\n` +
+      `MEDICAMENTOS PRESCRIPTOS:\n` +
+      (receta.receta_items || []).map((item: RecetaItem) =>
+        `• ${item.medicamento} — Dosis: ${item.dosis || '—'} | ` +
+        `Frecuencia: ${item.frecuencia || '—'} | ` +
+        `Días: ${item.dias || '—'}` +
+        (item.observaciones ? `\n  Obs: ${item.observaciones}` : '')
+      ).join('\n') +
+      (receta.indicaciones ? `\n\nINDICACIONES: ${receta.indicaciones}` : '') +
+      `\n\nDiagnóstico: ${receta.diagnostico || '—'}`
+    );
+
+    window.open(`mailto:${propietarioEmail}?subject=${subject}&body=${body}`);
+  };
 
   useEffect(() => { cargar(); }, [cargar]);
 
@@ -280,10 +487,16 @@ const SeccionRecetas = ({ usuario, tema }: { usuario: Usuario; tema: TemaObj }) 
                   </td>
                   <td style={{ padding: '12px 15px', fontSize: '13px', color: tema.textMuted }}>{r.usuarios?.nombre || '—'}</td>
                   <td style={{ padding: '12px 15px' }}>
-                    <button onClick={() => setRecetaVer(r)}
-                      style={{ padding: '5px 12px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>
-                      🖨️ Ver / Imprimir
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={() => setRecetaVer(r)}
+                        style={{ padding: '5px 12px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>
+                        Imprimir
+                      </button>
+                      <button onClick={() => enviarEmail(r)}
+                        style={{ padding: '5px 12px', background: 'transparent', color: tema.accent, border: `1px solid ${tema.accent}`, borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '500' }}>
+                        Enviar
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
